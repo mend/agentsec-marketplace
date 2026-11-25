@@ -1,0 +1,16 @@
+{
+  "name": "agentsec-marketplace",
+  "description": "Runtime telemetry hooks for Claude Code, Cursor, and Codex.",
+  "owner": {
+    "name": "Mend AI",
+    "email": "support@mend.ai"
+  },
+  "plugins": [
+    {
+      "name": "agentsec-agent-hooks",
+      "source": "./plugins/claude",
+      "description": "Runtime telemetry hooks for Claude Code (observe-only, fail-open).",
+      "license": "Proprietary"
+    }
+  ]
+}

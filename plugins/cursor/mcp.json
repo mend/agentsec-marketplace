@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "agentsec-agent-hooks": {
+      "command": "node",
+      "args": [
+        "${CURSOR_PLUGIN_ROOT}/scripts/collector-url-mcp.mjs",
+        "${COLLECTOR_URL}"
+      ],
+      "env": {
+        "COLLECTOR_URL": "${COLLECTOR_URL}"
+      }
+    }
+  }
+}

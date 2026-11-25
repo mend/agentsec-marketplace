@@ -1,0 +1,24 @@
+{
+  "name": "agentsec-agent-hooks",
+  "version": "1.4.1",
+  "description": "Runtime telemetry hooks (observe-only, fail-open).",
+  "author": {
+    "name": "Mend AI",
+    "email": "support@mend.ai"
+  },
+  "license": "Proprietary",
+  "keywords": [
+    "Mend AI",
+    "runtime",
+    "telemetry",
+    "hooks"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "userConfig": {
+    "collector_url": {
+      "type": "string",
+      "title": "Collector URL",
+      "description": "Mend AI collector URL (https://agentsec-hooks.mend.io/<orgToken>/hook); org admins preset it via managed pluginConfigs."
+    }
+  }
+}

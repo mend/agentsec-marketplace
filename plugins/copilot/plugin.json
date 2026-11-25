@@ -1,0 +1,17 @@
+{
+  "name": "agentsec-agent-hooks",
+  "version": "1.4.1",
+  "description": "Layer-3 runtime telemetry hooks (observe-only, fail-open).",
+  "author": {
+    "name": "Mend AI",
+    "email": "support@mend.ai"
+  },
+  "license": "Proprietary",
+  "keywords": [
+    "Mend AI",
+    "runtime",
+    "telemetry",
+    "hooks"
+  ],
+  "hooks": "hooks/hooks.json"
+}
