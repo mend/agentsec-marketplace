@@ -1,2 +1,184 @@
-# agentsec-marketplace
-Mend Agent Security plugin marketplace
+# Mend AI hooks marketplace
+
+Claude Code / Cursor / Codex / GitHub Copilot plugin marketplace for Layer-3 runtime telemetry.
+
+Each plugin ships its own runtime under `dist/`: the compiled `launcher.mjs` and the bundled `hook.mjs` it runs. `hooks.json` invokes `node dist/launcher.mjs` via the runner's plugin-root variable. Customer repos enable a plugin and commit a shared `collector_url` manifest — not per-event blocks in runner settings.
+
+> **Requires Node.js (>= 18) on `PATH`.** There is no binary fallback: without `node` every hook command is a fail-open no-op.
+
+> **A plugin hook never reaches the npm registry.** The runtime is the shipped payload, pinned by the payload `package.json` version. The launcher may adopt a newer *signed* `hook.mjs` published by the collector, but never one below the shipped version. The package still publishes publicly as **`@ev-ai/agent-hook`** for `configure` / `migrate-to-plugin` and for repos on file-wiring; consumers need no `.npmrc` and no token.
+
+## Layout
+
+```text
+.
+├── .claude-plugin/marketplace.json   # Claude Code marketplace catalog
+├── .cursor-plugin/marketplace.json   # Cursor marketplace catalog
+├── .agents/plugins/marketplace.json  # Codex marketplace catalog
+└── plugins/
+    ├── claude/                       # Claude Code
+    │   ├── .claude-plugin/plugin.json   # name: agentsec-agent-hooks
+    │   ├── hooks/hooks.json          # event map — invokes node dist/launcher.mjs
+    │   ├── package.json              # payload version + launcher protocol (read by the launcher)
+    │   └── dist/
+    │       ├── launcher.mjs          # hook entry: selects a hook and runs it
+    │       ├── launcher-update.mjs   # signed hook update check, loaded on demand
+    │       └── hook.mjs              # bundled runtime (zero-dependency)
+    ├── cursor/                       # Cursor — same files
+    ├── codex/                        # OpenAI Codex — same files
+    └── copilot/                      # GitHub Copilot — plugin.json at the root, plus scripts/collector-url-mcp.mjs
+```
+
+Every file above except `plugin.json` is **generated** from the `@ev-ai/agent-hook` package — never hand-edit them here (see [Releasing](#releasing)).
+
+`package.json` carries the package version in the *payload* rather than in a hook command, which is what lets a bump ship a new payload without rewriting `hooks.json`. The `dist/` layout mirrors the npm package: the launcher finds its siblings and `../package.json` relative to itself.
+
+## Plugins
+
+All three runners install the same plugin name — `agentsec-agent-hooks@agentsec-marketplace`. Each runner reads its own marketplace index, and each index lists exactly one plugin, so the runner is implied by the index rather than by the name. The directory under `plugins/` names the runner because the three ship different event maps.
+
+| Runner | Marketplace index | Plugin directory |
+| --- | --- | --- |
+| Claude Code | `.claude-plugin/marketplace.json` | `plugins/claude` |
+| Cursor | `.cursor-plugin/marketplace.json` | `plugins/cursor` |
+| OpenAI Codex | `.agents/plugins/marketplace.json` | `plugins/codex` |
+| GitHub Copilot | the enterprise's own `.github-private` marketplace (see [GitHub Copilot](#github-copilot)) | `plugins/copilot` |
+
+## How a hook event runs
+
+```text
+runner event
+  → node ${PLUGIN_ROOT}/dist/launcher.mjs --runner <runner>
+  → select hook: cached signed update, else bundled dist/hook.mjs
+  → node <hook> --runner <runner>
+  → ack; collect + POST continue detached
+```
+
+**No package version appears in any hook command.** A runtime bump changes the payload, not `hooks.json` — so it re-prompts nobody. That matters most on Codex, which trusts a hash of the hook definition and un-trusts it on every change.
+
+**One entry per event on Claude and Cursor**: each runner substitutes its plugin-root variable (`${CLAUDE_PLUGIN_ROOT}` / `${CURSOR_PLUGIN_ROOT}`) itself, so the same `node "…/dist/launcher.mjs"` command runs in a POSIX shell and in PowerShell (Cursor uses `pwsh`, else Windows PowerShell, on Windows). Neither gets a `powershell -Command` twin: both runners start every hook on an event in parallel, and a nested Windows PowerShell 5.1 start costs 20-45 s per event — long enough to outlive the 30 s event claim and post the event twice. Codex has a first-class `commandWindows` field and gets one entry with both.
+
+**Every command ends in `; exit 0`.** A missing payload or an unsubstituted plugin-root variable becomes stderr noise instead of a hook error on every event. Delivery is observe-only and fail-open by construction.
+
+POSIX commands expand `${CLAUDE_PLUGIN_ROOT}` / `${CURSOR_PLUGIN_ROOT}` / `${PLUGIN_ROOT}`. Codex's `commandWindows` reads `Env:PLUGIN_ROOT` itself rather than trusting runner-side substitution.
+
+## Install
+
+Replace `<owner>/<repo>` with this GitHub repo (e.g. `mend/agentsec-marketplace`).
+
+### Claude Code
+
+```bash
+# Add marketplace
+claude plugin marketplace add <owner>/<repo>
+
+# Install on this machine (enablement alone does not install)
+claude plugin install agentsec-agent-hooks@agentsec-marketplace
+```
+
+Project `.claude/settings.json` (commit both keys for collaborators):
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "agentsec-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "<owner>/<repo>"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "agentsec-agent-hooks@agentsec-marketplace": true
+  }
+}
+```
+
+Configure collector URL:
+
+```bash
+npx -y @ev-ai/agent-hook@1.4.0 configure \
+  --url "https://agentsec-hooks.mend.io/<orgToken>/hook"
+```
+
+Commit the collector manifest (`collector_url`).
+
+`enabledPlugins` without `extraKnownMarketplaces` only works on a machine that already ran `claude plugin marketplace add` — other clones will not know `agentsec-marketplace`.
+
+### Claude Code — org rollout (managed settings)
+
+Put this in Claude managed settings (admin console, MDM, or `managed-settings.json`). Every user's Claude Code registers the marketplace and installs the plugin at its next session start, with no per-repo or per-machine step:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "agentsec-marketplace": {
+      "source": { "source": "github", "repo": "mend/agentsec-marketplace" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "agentsec-agent-hooks@agentsec-marketplace": true
+  },
+  "pluginConfigs": {
+    "agentsec-agent-hooks@agentsec-marketplace": {
+      "options": { "collector_url": "https://agentsec-hooks.mend.io/<orgToken>/hook" }
+    }
+  }
+}
+```
+
+`pluginConfigs` presets the plugin's `collector_url` option; Claude Code exports it to every hook as `CLAUDE_PLUGIN_OPTION_COLLECTOR_URL`. It is the fallback: `--url`, `EV_AI_HOOK_MANIFEST`, `~/.ev-ai/config.json` and a committed repo manifest all win over it. `autoUpdate` is off by default for third-party marketplaces — without it the fleet never gets a release.
+
+### Cursor
+
+Import this repo as a team/user marketplace (or submit via [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish)), then enable `agentsec-agent-hooks`.
+
+Configure the same collector manifest as Claude (`configure` above).
+
+The plugin declares a required `COLLECTOR_URL` variable (`plugin.json` `variables`), so Cursor asks for the collector URL when the plugin is added and exports it to every hook as `COLLECTOR_URL`. Like Claude's `pluginConfigs` option, it is the fallback: `--url`, `EV_AI_HOOK_MANIFEST`, `~/.ev-ai/config.json` and a committed repo manifest all win over it. It needs a payload from `@ev-ai/agent-hook` that reads `COLLECTOR_URL`; older payloads ignore it and use the manifest.
+
+### GitHub Copilot
+
+Copilot (CLI, VS Code, Copilot app) has no plugin variables, and enterprise managed settings carry no `env` or `hooks`. The enterprise commits its own `.github/plugin/marketplace.json` to its `.github-private` repo. Its plugin entry points `source` at `plugins/copilot` here and adds an `mcpServers` server that runs `node scripts/collector-url-mcp.mjs <URL>` at session start. The server writes `collector_url` to `~/.ev-ai/config.json`, where the hook reads it, as with the Cursor plugin's `mcp.json`.
+
+`hooks/hooks.json` has one handler per event with `bash` (macOS / Linux), `powershell` (Windows) and `timeoutSec`. Both commands run `node` on `PATH` with `${PLUGIN_ROOT}`, which Copilot substitutes in the command text.
+
+`scripts/collector-url-mcp.mjs` is a copy of the Cursor plugin's script. Keep them in sync.
+
+### Codex
+
+Enable `agentsec-agent-hooks` from this marketplace, then trust hooks via `/hooks` — install and enable are not enough, and trust is stored against the hook-definition hash. Managed `[hooks]` (MDM / cloud requirements) is trusted by policy and needs no click.
+
+> `allow_managed_hooks_only = true` skips plugin hooks entirely. In an org with that set, put Mend AI on the managed `[hooks]` table instead of this marketplace.
+
+Restart runners; confirm events in the collector.
+
+## Do not double-wire
+
+If the repo already used file-wiring install, migrate first:
+
+```bash
+npx -y @ev-ai/agent-hook@1.4.0 migrate-to-plugin
+```
+
+Do **not** also keep per-event blocks in runner settings — that double-POSTs.
+
+## Releasing
+
+### The payload
+
+Each plugin ships the `@ev-ai/agent-hook` payload in `dist/` (`launcher.mjs`, `launcher-update.mjs` and `hook.mjs`), with its version in the plugin's `package.json`. The payload is built from the package, not edited here.
+
+`dist/` is identical in every plugin; a release that updates some vendors but not others is rejected.
+
+The plugin version in each `plugin.json` is separate from the package version. It is bumped when a release is published, and every release is listed in [CHANGELOG.md](CHANGELOG.md).
+
+### Publishing a release
+
+This repository doesn't take direct pushes or pull requests. Every change arrives as a single `Release vX.Y.Z` commit from an automated release process:
+
+1. A maintainer starts the release and another maintainer approves it before anything is published.
+2. Checks run before anything is pushed: identical `dist/` across vendors, version and changelog, no internal references, no secrets.
+3. The release commit is pushed to `release/next`, and its pull request is opened and squash-merged.
+4. The `vX.Y.Z` tag and GitHub Release are created from the merge.

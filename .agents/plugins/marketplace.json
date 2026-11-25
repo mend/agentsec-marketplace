@@ -1,0 +1,20 @@
+{
+  "name": "agentsec-marketplace",
+  "interface": {
+    "displayName": "Mend AI Marketplace"
+  },
+  "plugins": [
+    {
+      "name": "agentsec-agent-hooks",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

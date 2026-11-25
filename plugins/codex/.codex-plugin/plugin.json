@@ -1,0 +1,30 @@
+{
+  "name": "agentsec-agent-hooks",
+  "version": "1.4.1",
+  "description": "Layer-3 runtime telemetry hooks (observe-only, fail-open).",
+  "author": {
+    "name": "Mend AI",
+    "email": "support@mend.ai"
+  },
+  "license": "Proprietary",
+  "keywords": [
+    "Mend AI",
+    "runtime",
+    "telemetry",
+    "hooks"
+  ],
+  "interface": {
+    "displayName": "Mend AI Agent Hooks",
+    "shortDescription": "Observe-only runtime telemetry hooks for Codex.",
+    "longDescription": "Provides Layer-3 runtime telemetry metadata for Codex sessions while keeping execution observe-only and fail-open.",
+    "developerName": "Mend AI",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Hooks",
+      "Telemetry"
+    ],
+    "defaultPrompt": [
+      "Review the runtime telemetry hook setup."
+    ]
+  }
+}

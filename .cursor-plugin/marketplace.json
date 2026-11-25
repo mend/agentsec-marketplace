@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/cursor-marketplace.json",
+  "name": "agentsec-marketplace",
+  "owner": {
+    "name": "Mend AI",
+    "email": "support@mend.ai"
+  },
+  "metadata": {
+    "description": "Layer-3 runtime telemetry hooks for Claude Code, Cursor, and Codex."
+  },
+  "plugins": [
+    {
+      "name": "agentsec-agent-hooks",
+      "source": "./plugins/cursor",
+      "description": "Runtime telemetry hooks for Cursor (observe-only, fail-open).",
+      "license": "Proprietary"
+    }
+  ]
+}
